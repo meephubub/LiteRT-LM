@@ -2,19 +2,12 @@ name: Build LiteRT-LM Windows
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
-  build-windows:
-    name: Build LiteRT-LM C API (Windows)
+  build:
     runs-on: windows-2022
 
     steps:
-      - name: Checkout Rust bindings
-        uses: actions/checkout@v4
-
       - name: Checkout LiteRT-LM
         uses: actions/checkout@v4
         with:
@@ -24,28 +17,21 @@ jobs:
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
 
-      - name: Check environment
-        shell: powershell
-        run: |
-          bazel --version
-          git --version
-          dir
-
-      - name: Build LiteRT-LM engine
+      - name: Build LiteRT-LM C API
         shell: powershell
         run: |
           cd LiteRT-LM
-
-          bazel build //c:engine `
+          bazelisk build //c:litert-lm `
+            --config=windows `
+            --output_base=C:\bzl `
             --verbose_failures
 
-      - name: Find build output
+      - name: Inspect output
         shell: powershell
         run: |
-          cd LiteRT-LM
-          Get-ChildItem -Recurse bazel-bin\c
+          Get-ChildItem -Recurse LiteRT-LM\bazel-bin\c
 
-      - name: Upload engine binaries
+      - name: Upload DLL
         uses: actions/upload-artifact@v4
         with:
           name: litert-lm-windows-x86_64
