@@ -19,15 +19,14 @@ jobs:
       - name: Stub Android dependencies
         shell: powershell
         run: |
-          # Create a dummy folder to satisfy the path requirements
+          # Create an empty folder to trick the workspace syntax parser into passing validation
           New-Item -ItemType Directory -Force -Path C:\dummy_android
           
-          # Force Bazel to evaluate the workspace natively on Windows using empty dummy paths
-          # This satisfies toolchain registration without downloading the Android binaries
           $path = "WORKSPACE"
-          Write-Host "Stubbing $path..."
+          Write-Host "Stubbing paths in $path..."
           $text = Get-Content $path -Raw
           
+          # Supply a valid physical location to satisfy toolchain registration
           $text = $text -replace `
             'android_ndk_repository\(name = "androidndk"\)', `
             'android_ndk_repository(name = "androidndk", path = "C:/dummy_android")'
@@ -37,16 +36,17 @@ jobs:
             'android_sdk_repository(name = "androidsdk", path = "C:/dummy_android")'
             
           Set-Content $path $text
-          Write-Host "Checking patch:"
+          Write-Host "Checking patch state:"
           Select-String -Path $path -Pattern "android_ndk_repository|android_sdk_repository"
 
       - name: Build LiteRT-LM C API
         shell: powershell
         run: |
-          # Added --no_android_crosstool flag to explicitly tell Bazel to avoid resolving Android toolchains
+          # Enforce host platform builds explicitly to drop Android cross-compiling pipelines
           bazelisk build //c:litert-lm `
             --config=windows `
-            --no_android_crosstool `
+            --platforms=@bazel_tools//platforms:x86_64 `
+            --extra_execution_platforms=@bazel_tools//platforms:x86_64 `
             --verbose_failures
 
       - name: Locate build output
