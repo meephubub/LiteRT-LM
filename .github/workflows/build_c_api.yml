@@ -12,7 +12,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: google-ai-edge/LiteRT-LM
-          path: LiteRT-LM
 
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
@@ -20,69 +19,69 @@ jobs:
       - name: Patch Android dependencies
         shell: powershell
         run: |
-          cd LiteRT-LM
+          $path = "WORKSPACE"
 
-          python - <<'PY'
-          from pathlib import Path
+          Write-Host "Patching $path..."
 
-          path = Path("WORKSPACE")
-          text = path.read_text()
+          $text = Get-Content $path -Raw
 
-          text = text.replace(
-              'android_ndk_repository(name = "androidndk")',
-              '# android_ndk_repository(name = "androidndk")'
-          )
+          $text = $text -replace `
+            'android_ndk_repository\(name = "androidndk"\)', `
+            '# android_ndk_repository(name = "androidndk")'
 
-          text = text.replace(
-              'android_sdk_repository(name = "androidsdk")',
-              '# android_sdk_repository(name = "androidsdk")'
-          )
+          $text = $text -replace `
+            'android_sdk_repository\(name = "androidsdk"\)', `
+            '# android_sdk_repository(name = "androidsdk")'
 
-          path.write_text(text)
-          PY
+          Set-Content $path $text
+
+          Write-Host "Checking patch:"
+          Select-String -Path $path -Pattern "android_ndk_repository|android_sdk_repository"
 
       - name: Build LiteRT-LM C API
         shell: powershell
         run: |
-          cd LiteRT-LM
-
           bazelisk build //c:litert-lm `
             --config=windows `
             --verbose_failures
 
-      - name: Find build outputs
+      - name: Locate build output
         shell: powershell
         run: |
-          cd LiteRT-LM
+          Write-Host "Searching bazel-bin..."
 
-          Write-Host "Searching for DLL and LIB files..."
-          Get-ChildItem -Recurse bazel-bin -Include *.dll,*.lib
+          Get-ChildItem `
+            -Recurse `
+            bazel-bin `
+            -Include *.dll,*.lib `
+            -ErrorAction SilentlyContinue
 
-      - name: Package Windows binaries
+      - name: Collect binaries
         shell: powershell
         run: |
-          mkdir litert-lm-windows
+          New-Item -ItemType Directory -Force -Path output
 
           Copy-Item `
-            LiteRT-LM\bazel-bin\c\*.dll `
-            litert-lm-windows\ `
+            bazel-bin\c\*.dll `
+            output\ `
             -ErrorAction SilentlyContinue
 
           Copy-Item `
-            LiteRT-LM\bazel-bin\c\*.lib `
-            litert-lm-windows\ `
+            bazel-bin\c\*.lib `
+            output\ `
             -ErrorAction SilentlyContinue
 
-          # Copy LiteRT runtime dependencies
+          # LiteRT runtime dependencies
           Copy-Item `
-            LiteRT-LM\prebuilt\windows_x86_64\*.dll `
-            litert-lm-windows\ `
+            prebuilt\windows_x86_64\*.dll `
+            output\ `
             -ErrorAction SilentlyContinue
 
-          Get-ChildItem litert-lm-windows
+          Write-Host "Final files:"
+          Get-ChildItem output
 
       - name: Upload Windows binaries
         uses: actions/upload-artifact@v4
         with:
           name: litert-lm-windows-x86_64
-          path: litert-lm-windows
+          path: output
