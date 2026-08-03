@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-2022
 
     steps:
@@ -17,20 +17,72 @@ jobs:
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
 
+      - name: Patch Android dependencies
+        shell: powershell
+        run: |
+          cd LiteRT-LM
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("WORKSPACE")
+          text = path.read_text()
+
+          text = text.replace(
+              'android_ndk_repository(name = "androidndk")',
+              '# android_ndk_repository(name = "androidndk")'
+          )
+
+          text = text.replace(
+              'android_sdk_repository(name = "androidsdk")',
+              '# android_sdk_repository(name = "androidsdk")'
+          )
+
+          path.write_text(text)
+          PY
+
       - name: Build LiteRT-LM C API
         shell: powershell
         run: |
           cd LiteRT-LM
-          bazelisk build //c:litert-lm --config=windows --verbose_failures
 
-      - name: Inspect output
+          bazelisk build //c:litert-lm `
+            --config=windows `
+            --verbose_failures
+
+      - name: Find build outputs
         shell: powershell
         run: |
-          Get-ChildItem -Recurse LiteRT-LM\bazel-bin\c
+          cd LiteRT-LM
 
-      - name: Upload DLL
+          Write-Host "Searching for DLL and LIB files..."
+          Get-ChildItem -Recurse bazel-bin -Include *.dll,*.lib
+
+      - name: Package Windows binaries
+        shell: powershell
+        run: |
+          mkdir litert-lm-windows
+
+          Copy-Item `
+            LiteRT-LM\bazel-bin\c\*.dll `
+            litert-lm-windows\ `
+            -ErrorAction SilentlyContinue
+
+          Copy-Item `
+            LiteRT-LM\bazel-bin\c\*.lib `
+            litert-lm-windows\ `
+            -ErrorAction SilentlyContinue
+
+          # Copy LiteRT runtime dependencies
+          Copy-Item `
+            LiteRT-LM\prebuilt\windows_x86_64\*.dll `
+            litert-lm-windows\ `
+            -ErrorAction SilentlyContinue
+
+          Get-ChildItem litert-lm-windows
+
+      - name: Upload Windows binaries
         uses: actions/upload-artifact@v4
         with:
           name: litert-lm-windows-x86_64
-          path: |
-            LiteRT-LM/bazel-bin/c/**
+          path: litert-lm-windows
