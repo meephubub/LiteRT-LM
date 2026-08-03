@@ -1,28 +1,53 @@
-name: Build LiteRT-LM C API
+name: Build LiteRT-LM Windows
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-24.04
+  build-windows:
+    name: Build LiteRT-LM C API (Windows)
+    runs-on: windows-2022
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Rust bindings
+        uses: actions/checkout@v4
 
-      - name: Install Bazelisk
+      - name: Checkout LiteRT-LM
+        uses: actions/checkout@v4
+        with:
+          repository: google-ai-edge/LiteRT-LM
+          path: LiteRT-LM
+
+      - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
 
-      - name: Build engine
+      - name: Check environment
+        shell: powershell
+        run: |
+          bazel --version
+          git --version
+          dir
+
+      - name: Build LiteRT-LM engine
+        shell: powershell
         run: |
           cd LiteRT-LM
-          bazel build //c:engine
 
-      - name: Upload artifacts
+          bazel build //c:engine `
+            --verbose_failures
+
+      - name: Find build output
+        shell: powershell
+        run: |
+          cd LiteRT-LM
+          Get-ChildItem -Recurse bazel-bin\c
+
+      - name: Upload engine binaries
         uses: actions/upload-artifact@v4
         with:
-          name: litert-engine-linux
+          name: litert-lm-windows-x86_64
           path: |
-            LiteRT-LM/bazel-bin/c/*
+            LiteRT-LM/bazel-bin/c/**
