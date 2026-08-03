@@ -1,0 +1,28 @@
+name: Build LiteRT-LM C API
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Build engine
+        run: |
+          cd LiteRT-LM
+          bazel build //c:engine
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: litert-engine-linux
+          path: |
+            LiteRT-LM/bazel-bin/c/*
