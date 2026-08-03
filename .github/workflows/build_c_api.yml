@@ -16,40 +16,43 @@ jobs:
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
 
-      - name: Patch Android dependencies
+      - name: Stub Android dependencies
         shell: powershell
         run: |
+          # Create a dummy folder to satisfy the path requirements
+          New-Item -ItemType Directory -Force -Path C:\dummy_android
+          
+          # Force Bazel to evaluate the workspace natively on Windows using empty dummy paths
+          # This satisfies toolchain registration without downloading the Android binaries
           $path = "WORKSPACE"
-
-          Write-Host "Patching $path..."
-
+          Write-Host "Stubbing $path..."
           $text = Get-Content $path -Raw
-
+          
           $text = $text -replace `
             'android_ndk_repository\(name = "androidndk"\)', `
-            '# android_ndk_repository(name = "androidndk")'
-
+            'android_ndk_repository(name = "androidndk", path = "C:/dummy_android")'
+            
           $text = $text -replace `
             'android_sdk_repository\(name = "androidsdk"\)', `
-            '# android_sdk_repository(name = "androidsdk")'
-
+            'android_sdk_repository(name = "androidsdk", path = "C:/dummy_android")'
+            
           Set-Content $path $text
-
           Write-Host "Checking patch:"
           Select-String -Path $path -Pattern "android_ndk_repository|android_sdk_repository"
 
       - name: Build LiteRT-LM C API
         shell: powershell
         run: |
+          # Added --no_android_crosstool flag to explicitly tell Bazel to avoid resolving Android toolchains
           bazelisk build //c:litert-lm `
             --config=windows `
+            --no_android_crosstool `
             --verbose_failures
 
       - name: Locate build output
         shell: powershell
         run: |
           Write-Host "Searching bazel-bin..."
-
           Get-ChildItem `
             -Recurse `
             bazel-bin `
@@ -60,23 +63,19 @@ jobs:
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path output
-
           Copy-Item `
             bazel-bin\c\*.dll `
             output\ `
             -ErrorAction SilentlyContinue
-
           Copy-Item `
             bazel-bin\c\*.lib `
             output\ `
             -ErrorAction SilentlyContinue
-
           # LiteRT runtime dependencies
           Copy-Item `
             prebuilt\windows_x86_64\*.dll `
             output\ `
             -ErrorAction SilentlyContinue
-
           Write-Host "Final files:"
           Get-ChildItem output
 
