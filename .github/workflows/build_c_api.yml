@@ -21,10 +21,7 @@ jobs:
         shell: powershell
         run: |
           cd LiteRT-LM
-          bazelisk build //c:litert-lm `
-            --config=windows `
-            --output_base=C:\bzl `
-            --verbose_failures
+          bazelisk build //c:litert-lm --config=windows --verbose_failures
 
       - name: Inspect output
         shell: powershell
